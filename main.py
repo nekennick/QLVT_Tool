@@ -12,12 +12,16 @@ class QLVTApp:
     def __init__(self, root):
         self.root = root
         self.root.title("QLVT Tool V2")
-        self.root.geometry("800x600")
-        self.root.minsize(600, 400)
+        self.root.geometry("600x500")
+        self.root.minsize(500, 400)
+        
+        # Biến theo dõi trạng thái ghim
+        self.is_pinned = False
         
         # Data storage
         self.items = []
         self.filtered_items = []
+        self.bookmarked_items = []
         self.status_message = ""
         self.status_timer = None
         self.search_timer = None
@@ -44,9 +48,17 @@ class QLVTApp:
         top_frame = ttk.Frame(main_frame)
         top_frame.pack(fill=tk.X, pady=(0, 10))
         
+        # Left frame for buttons
+        button_frame = ttk.Frame(top_frame)
+        button_frame.pack(side=tk.LEFT)
+        
         # Import button
-        import_btn = ttk.Button(top_frame, text="Import Excel", command=self.import_excel)
-        import_btn.pack(side=tk.LEFT, padx=(0, 10))
+        import_btn = ttk.Button(button_frame, text="Import Excel", command=self.import_excel)
+        import_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # Pin button
+        self.pin_btn = ttk.Button(button_frame, text="📌 Ghim", width=8, command=self.toggle_pin)
+        self.pin_btn.pack(side=tk.LEFT, padx=5)
         
         # Search frame
         search_frame = ttk.Frame(top_frame)
@@ -66,12 +78,23 @@ class QLVTApp:
         list_frame = ttk.Frame(main_frame)
         list_frame.pack(fill=tk.BOTH, expand=True)
         
+        # Frame for bookmarked items
+        self.bookmarked_frame = ttk.Frame(list_frame)
+        self.bookmarked_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        # Separator between bookmarked and normal items
+        self.separator = ttk.Separator(list_frame, orient='horizontal')
+        
+        # Frame for normal items with scrollbar
+        normal_items_frame = ttk.Frame(list_frame)
+        normal_items_frame.pack(fill=tk.BOTH, expand=True)
+        
         # Scrollbar
-        scrollbar = ttk.Scrollbar(list_frame)
+        scrollbar = ttk.Scrollbar(normal_items_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Canvas for scrollable content
-        self.canvas = tk.Canvas(list_frame, yscrollcommand=scrollbar.set)
+        self.canvas = tk.Canvas(normal_items_frame, yscrollcommand=scrollbar.set)
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.canvas.yview)
         
@@ -96,6 +119,20 @@ class QLVTApp:
         style = ttk.Style()
         style.configure("Item.TFrame", background="#f0f0f0")
         style.configure("DragActive.TFrame", background="#d0d0ff")
+        style.configure("Pinned.TButton", background="#ffd700")
+        style.configure("Bookmarked.TFrame", background="#fff3cd")
+    
+    def toggle_pin(self):
+        """Toggle window pin state"""
+        self.is_pinned = not self.is_pinned
+        if self.is_pinned:
+            self.root.attributes('-topmost', True)
+            self.pin_btn.configure(text="📌 Bỏ ghim", style="Pinned.TButton")
+            self.show_status_message("✅ Đã ghim cửa sổ")
+        else:
+            self.root.attributes('-topmost', False)
+            self.pin_btn.configure(text="📌 Ghim", style="")
+            self.show_status_message("✅ Đã bỏ ghim cửa sổ")
     
     def on_canvas_configure(self, event):
         # Ensure items frame width matches canvas width
@@ -109,37 +146,75 @@ class QLVTApp:
         # Windows uses 'delta' with different values
         self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
     
+    def toggle_bookmark(self, item):
+        """Toggle bookmark status for an item"""
+        # Check if item is already bookmarked
+        is_bookmarked = False
+        for i, bookmarked in enumerate(self.bookmarked_items):
+            if bookmarked["code"] == item["code"]:
+                # Remove from bookmarks
+                self.bookmarked_items.pop(i)
+                is_bookmarked = True
+                self.show_status_message("✅ Đã bỏ đánh dấu")
+                break
+        
+        if not is_bookmarked:
+            # Add to bookmarks
+            self.bookmarked_items.append(item)
+            self.show_status_message("✅ Đã đánh dấu")
+        
+        # Save changes
+        self.save_data()
+        
+        # Refresh display
+        self.display_items()
+    
     def display_items(self):
-        # Clear the existing items
+        # Clear existing items
+        for widget in self.bookmarked_frame.winfo_children():
+            widget.destroy()
         for widget in self.items_frame.winfo_children():
             widget.destroy()
         
-        # Display the items (filtered or all)
+        # Get items to display
         items_to_display = self.filtered_items if self.filtered_items else self.items
         
+        # Display bookmarked items first
+        if self.bookmarked_items and not self.filtered_items:
+            for index, item in enumerate(self.bookmarked_items):
+                self.create_item_widget(item, index, self.bookmarked_frame)
+            self.separator.pack(fill=tk.X, pady=5)
+        else:
+            self.separator.pack_forget()
+        
+        # Display other items
         for index, item in enumerate(items_to_display):
+            if not self.filtered_items and any(b['code'] == item['code'] for b in self.bookmarked_items):
+                continue  # Skip if item is bookmarked and we're not filtering
             self.create_item_widget(item, index)
         
         # Update the canvas scrollregion
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
     
-    def create_item_widget(self, item, index):
+    def create_item_widget(self, item, index, parent_frame=None):
         # Create a frame for each item
-        item_frame = ttk.Frame(self.items_frame)
+        item_frame = ttk.Frame(parent_frame if parent_frame else self.items_frame)
         item_frame.pack(fill=tk.X, pady=2)
         
-        # Make the frame draggable
-        item_frame.bind("<ButtonPress-1>", lambda e, idx=index: self.on_drag_start(e, idx, item_frame))
-        item_frame.bind("<B1-Motion>", self.on_drag_motion)
-        item_frame.bind("<ButtonRelease-1>", self.on_drag_release)
+        # Make the frame draggable if it's in bookmarked items
+        if parent_frame == self.bookmarked_frame:
+            item_frame.bind("<ButtonPress-1>", lambda e, idx=index: self.on_drag_start(e, idx, item_frame))
+            item_frame.bind("<B1-Motion>", self.on_drag_motion)
+            item_frame.bind("<ButtonRelease-1>", self.on_drag_release)
         
-        # Set a distinctive background for better visibility during drag
-        item_frame.configure(style="Item.TFrame")
+        # Set a distinctive background
+        is_bookmarked = any(b['code'] == item['code'] for b in self.bookmarked_items)
+        item_frame.configure(style="Bookmarked.TFrame" if is_bookmarked else "Item.TFrame")
         
         # Display item code and name (truncated if too long)
         name_text = item["name"]
-        if len(name_text) > 60:
-            name_text = name_text[:60] + "..."
+        if len(name_text) > 30:
+            name_text = name_text[:30] + "..."
         
         # Create a label with code and truncated name
         item_label = ttk.Label(item_frame, text=f"{item['code']} - {name_text}")
@@ -148,10 +223,20 @@ class QLVTApp:
         # Double-click to edit
         item_label.bind("<Double-1>", lambda e, i=item, idx=index: self.edit_item(i, idx))
         
+        # Button frame for multiple buttons
+        btn_frame = ttk.Frame(item_frame)
+        btn_frame.pack(side=tk.RIGHT)
+        
+        # Bookmark button
+        bookmark_text = "★" if is_bookmarked else "☆"
+        bookmark_btn = ttk.Button(btn_frame, text=bookmark_text, width=3,
+                                command=lambda i=item: self.toggle_bookmark(i))
+        bookmark_btn.pack(side=tk.RIGHT, padx=2)
+        
         # Copy button
-        copy_btn = ttk.Button(item_frame, text="Copy", width=8,
-                              command=lambda i=item: self.copy_item_code(i))
-        copy_btn.pack(side=tk.RIGHT, padx=5)
+        copy_btn = ttk.Button(btn_frame, text="Copy", width=8,
+                            command=lambda i=item: self.copy_item_code(i))
+        copy_btn.pack(side=tk.RIGHT, padx=2)
     
     def copy_item_code(self, item):
         pyperclip.copy(item["code"])
@@ -389,6 +474,9 @@ class QLVTApp:
         
         # Visual feedback - change background color
         frame.configure(style="DragActive.TFrame")
+        
+        # Store whether we're dragging a bookmarked item
+        self.drag_data["is_bookmark"] = frame.master == self.bookmarked_frame
     
     def on_drag_motion(self, event):
         if self.drag_data["widget"]:
@@ -411,14 +499,19 @@ class QLVTApp:
     
     def on_drag_release(self, event):
         if self.drag_data["widget"] and self.drag_data["index"] >= 0:
+            # Only handle drag and drop for bookmarked items
+            if not self.drag_data.get("is_bookmark"):
+                self.drag_data["widget"].configure(style="Item.TFrame")
+                return
+                
             # Reset visual style
-            self.drag_data["widget"].configure(style="Item.TFrame")
+            is_bookmarked = any(b['code'] == self.bookmarked_items[self.drag_data["index"]]['code'] 
+                               for b in self.bookmarked_items)
+            self.drag_data["widget"].configure(
+                style="Bookmarked.TFrame" if is_bookmarked else "Item.TFrame")
             
-            # Determine new position based on mouse position
-            items_list = self.filtered_items if self.filtered_items else self.items
-            
-            # Get all item frames
-            frames = [w for w in self.items_frame.winfo_children() if isinstance(w, ttk.Frame)]
+            # Get all bookmark frames
+            frames = [w for w in self.bookmarked_frame.winfo_children() if isinstance(w, ttk.Frame)]
             
             # Find the closest frame to drop position
             drop_y = event.y_root
@@ -436,24 +529,9 @@ class QLVTApp:
             
             # If we have a valid drop target and it's different from source
             if closest_idx >= 0 and closest_idx != self.drag_data["index"]:
-                if self.filtered_items:
-                    # If we're working with filtered items, we need to update both lists
-                    moved_item = self.filtered_items.pop(self.drag_data["index"])
-                    self.filtered_items.insert(closest_idx, moved_item)
-                    
-                    # Find the original indices in the full list
-                    orig_source_idx = self.items.index(moved_item)
-                    orig_item = self.items.pop(orig_source_idx)
-                    
-                    # Find where to insert in the full list
-                    target_item = self.filtered_items[closest_idx]
-                    orig_target_idx = self.items.index(target_item)
-                    
-                    self.items.insert(orig_target_idx, orig_item)
-                else:
-                    # Direct movement in the main list
-                    moved_item = self.items.pop(self.drag_data["index"])
-                    self.items.insert(closest_idx, moved_item)
+                # Move item in bookmarked list
+                moved_item = self.bookmarked_items.pop(self.drag_data["index"])
+                self.bookmarked_items.insert(closest_idx, moved_item)
                 
                 # Save the updated order
                 self.save_data()
@@ -462,23 +540,29 @@ class QLVTApp:
                 self.display_items()
                 
                 # Show status message
-                self.show_status_message("✅ Đã thay đổi thứ tự")
+                self.show_status_message("✅ Đã thay đổi thứ tự bookmark")
             
             # Reset drag data
-            self.drag_data = {"widget": None, "index": -1, "y_pos": 0}
+            self.drag_data = {"widget": None, "index": -1, "y_pos": 0, "is_bookmark": False}
     
     def save_data(self):
         """Save items data to a JSON file"""
         try:
             # Remove preprocessing fields before saving
-            save_items = []
-            for item in self.items:
-                save_item = {"code": item["code"], "name": item["name"]}
-                save_items.append(save_item)
+            save_data = {
+                "items": [
+                    {"code": item["code"], "name": item["name"]}
+                    for item in self.items
+                ],
+                "bookmarks": [
+                    {"code": item["code"], "name": item["name"]}
+                    for item in self.bookmarked_items
+                ]
+            }
                 
             data_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.json")
             with open(data_file, 'w', encoding='utf-8') as f:
-                json.dump(save_items, f, ensure_ascii=False, indent=2)
+                json.dump(save_data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             self.show_status_message(f"❌ Lỗi lưu dữ liệu: {str(e)}")
     
@@ -488,12 +572,30 @@ class QLVTApp:
             data_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.json")
             if os.path.exists(data_file):
                 with open(data_file, 'r', encoding='utf-8') as f:
-                    loaded_items = json.load(f)
+                    loaded_data = json.load(f)
+                
+                # Handle both old and new format
+                if isinstance(loaded_data, list):
+                    loaded_items = loaded_data
+                    loaded_bookmarks = []
+                else:
+                    loaded_items = loaded_data.get("items", [])
+                    loaded_bookmarks = loaded_data.get("bookmarks", [])
                 
                 # Add preprocessing fields
                 self.items = []
                 for item in loaded_items:
                     self.items.append({
+                        "code": item["code"],
+                        "name": item["name"],
+                        "code_lower": item["code"].lower(),
+                        "name_lower": item["name"].lower()
+                    })
+                
+                # Load bookmarks
+                self.bookmarked_items = []
+                for item in loaded_bookmarks:
+                    self.bookmarked_items.append({
                         "code": item["code"],
                         "name": item["name"],
                         "code_lower": item["code"].lower(),

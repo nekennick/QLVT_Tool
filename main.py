@@ -41,39 +41,50 @@ class QLVTApp:
         self.load_data()
     
     def create_ui(self):
-        # Create main frame
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        # Create main frame with modern style
+        main_frame = ttk.Frame(self.root, style="Main.TFrame")
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # Top frame for buttons and search
-        top_frame = ttk.Frame(main_frame)
-        top_frame.pack(fill=tk.X, pady=(0, 10))
+        top_frame = ttk.Frame(main_frame, style="Main.TFrame")
+        top_frame.pack(fill=tk.X, pady=(0, 15))
         
         # Left frame for buttons
-        button_frame = ttk.Frame(top_frame)
+        button_frame = ttk.Frame(top_frame, style="Main.TFrame")
         button_frame.pack(side=tk.LEFT)
         
-        # Import button
-        import_btn = ttk.Button(button_frame, text="Import Excel", command=self.import_excel)
-        import_btn.pack(side=tk.LEFT, padx=(0, 5))
+        # Import button with accent color
+        import_btn = ttk.Button(button_frame, 
+                              text="📂 Import Excel",
+                              style="Accent.TButton",
+                              command=self.import_excel)
+        import_btn.pack(side=tk.LEFT, padx=(0, 8))
         
-        # Pin button
-        self.pin_btn = ttk.Button(button_frame, text="📌 Ghim", width=8, command=self.toggle_pin)
-        self.pin_btn.pack(side=tk.LEFT, padx=5)
+        # Pin button with special style
+        self.pin_btn = ttk.Button(button_frame,
+                                text="📌 Ghim",
+                                style="Pin.TButton",
+                                command=self.toggle_pin)
+        self.pin_btn.pack(side=tk.LEFT, padx=(0, 8))
         
-        # Search frame
-        search_frame = ttk.Frame(top_frame)
+        # Search frame with modern style
+        search_frame = ttk.Frame(top_frame, style="Main.TFrame")
         search_frame.pack(side=tk.RIGHT, fill=tk.X, expand=True)
         
-        # Search label
-        search_lbl = ttk.Label(search_frame, text="Tìm kiếm:")
-        search_lbl.pack(side=tk.LEFT, padx=(0, 5))
+        # Search label with icon
+        search_lbl = ttk.Label(search_frame,
+                             text="🔍 Tìm kiếm:",
+                             background="#ffffff",
+                             font=("Segoe UI", 9))
+        search_lbl.pack(side=tk.LEFT, padx=(0, 8))
         
-        # Search variable and entry
+        # Search variable and entry with modern style
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", self.on_search_input)
-        search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
-        search_entry.pack(side=tk.RIGHT, fill=tk.X, expand=True)
+        search_entry = ttk.Entry(search_frame,
+                               textvariable=self.search_var,
+                               style="Search.TEntry")
+        search_entry.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(0, 5))
         
         # Create a frame for the list with scrollbar
         list_frame = ttk.Frame(main_frame)
@@ -118,10 +129,43 @@ class QLVTApp:
     def setup_styles(self):
         """Set up custom styles for the UI elements"""
         style = ttk.Style()
-        style.configure("Item.TFrame", background="#f0f0f0")
-        style.configure("DragActive.TFrame", background="#d0d0ff")
-        style.configure("Pinned.TButton", background="#ffd700")
-        style.configure("Bookmarked.TFrame", background="#fff3cd")
+        
+        # Configure colors
+        style.configure(".", font=("Segoe UI", 9))
+        style.configure("Item.TFrame", background="#ffffff")
+        style.configure("DragActive.TFrame", background="#e3f2fd")
+        style.configure("Bookmarked.TFrame", background="#fff8e1")
+        
+        # Buttons
+        style.configure("Accent.TButton", 
+                      padding=2,
+                      background="#f0f0f0",
+                      foreground="black")
+        style.map("Accent.TButton",
+                 background=[("active", "#e0e0e0")])
+        
+        style.configure("Secondary.TButton",
+                      padding=2,
+                      background="#f5f5f5")
+        style.map("Secondary.TButton",
+                 background=[("active", "#e0e0e0")])
+        
+        # Pin button
+        style.configure("Pin.TButton",
+                      padding=2,
+                      background="#f0f0f0")
+        
+        # Search entry
+        style.configure("Search.TEntry",
+                      padding=5,
+                      fieldbackground="#f5f5f5")
+        
+        # Configure root window
+        self.root.configure(bg="#ffffff")
+        
+        # Configure main frame padding
+        style.configure("Main.TFrame", background="#ffffff", padding=10)
+        style.configure("List.TFrame", background="#ffffff", padding=2)
     
     def toggle_pin(self):
         """Toggle window pin state"""
@@ -198,9 +242,9 @@ class QLVTApp:
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
     
     def create_item_widget(self, item, index, parent_frame=None):
-        # Create a frame for each item
+        # Create a frame for each item with modern style
         item_frame = ttk.Frame(parent_frame if parent_frame else self.items_frame)
-        item_frame.pack(fill=tk.X, pady=2)
+        item_frame.pack(fill=tk.X, pady=1, padx=2)
         
         # Make the frame draggable if it's in bookmarked items
         if parent_frame == self.bookmarked_frame:
@@ -208,34 +252,43 @@ class QLVTApp:
             item_frame.bind("<B1-Motion>", self.on_drag_motion)
             item_frame.bind("<ButtonRelease-1>", self.on_drag_release)
         
-        # Set a distinctive background
+        # Set a distinctive background with hover effect
         is_bookmarked = any(b['code'] == item['code'] for b in self.bookmarked_items)
         item_frame.configure(style="Bookmarked.TFrame" if is_bookmarked else "Item.TFrame")
         
         # Display item code and name (truncated if too long)
         name_text = item["name"]
-        if len(name_text) > 30:
-            name_text = name_text[:30] + "..."
+        if len(name_text) > 40:
+            name_text = name_text[:40] + "..."
         
         # Create a label with code and truncated name
-        item_label = ttk.Label(item_frame, text=f"{item['code']} - {name_text}")
-        item_label.pack(side=tk.LEFT, anchor=tk.W, padx=(5, 0))
+        item_label = ttk.Label(item_frame,
+                             text=f"{item['code']} - {name_text}",
+                             background="#ffffff" if not is_bookmarked else "#fff8e1",
+                             font=("Segoe UI", 9))
+        item_label.pack(side=tk.LEFT, anchor=tk.W, padx=(4, 0), pady=0)
         
         # Double-click to edit
         item_label.bind("<Double-1>", lambda e, i=item, idx=index: self.edit_item(i, idx))
         
         # Button frame for multiple buttons
-        btn_frame = ttk.Frame(item_frame)
-        btn_frame.pack(side=tk.RIGHT)
+        btn_frame = ttk.Frame(item_frame, style="Main.TFrame")
+        btn_frame.pack(side=tk.RIGHT, padx=2)
         
-        # Bookmark button
-        bookmark_text = "★" if is_bookmarked else "☆"
-        bookmark_btn = ttk.Button(btn_frame, text=bookmark_text, width=3,
+        # Bookmark button with star icon
+        bookmark_text = "⭐" if is_bookmarked else "☆"
+        bookmark_btn = ttk.Button(btn_frame,
+                                text=bookmark_text,
+                                style="Secondary.TButton",
+                                width=3,
                                 command=lambda i=item: self.toggle_bookmark(i))
         bookmark_btn.pack(side=tk.RIGHT, padx=2)
         
-        # Copy button
-        copy_btn = ttk.Button(btn_frame, text="Copy", width=8,
+        # Copy button with modern style
+        copy_btn = ttk.Button(btn_frame,
+                            text="📋 Copy",
+                            style="Secondary.TButton",
+                            width=8,
                             command=lambda i=item: self.copy_item_code(i))
         copy_btn.pack(side=tk.RIGHT, padx=2)
     

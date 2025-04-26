@@ -492,34 +492,50 @@ class QLVTApp:
         cancel_btn.pack(side=tk.LEFT, padx=5)
     
     def save_edited_item(self, index, code, name, dialog):
+        """Save edited item and close dialog"""
         if not code or not name:
             messagebox.showerror("Lỗi", "Mã và tên vật tư không được để trống")
             return
         
-        # Update the item
-        items_list = self.filtered_items if self.filtered_items else self.items
-        item_index = index if not self.filtered_items else self.items.index(items_list[index])
+        # Update item in the list
+        if index < len(self.items):
+            old_code = self.items[index]["code"]
+            self.items[index]["code"] = code
+            self.items[index]["name"] = name
+            self.items[index]["code_lower"] = code.lower()
+            self.items[index]["name_lower"] = name.lower()
+            
+            # Find and update the item widget
+            for widget in self.items_frame.winfo_children():
+                if isinstance(widget, ttk.Frame):
+                    for child in widget.winfo_children():
+                        if isinstance(child, ttk.Label) and old_code in child["text"]:
+                            child.configure(text=f"{code} - {name}")
+                            break
         
-        self.items[item_index]["code"] = code
-        self.items[item_index]["name"] = name
-        self.items[item_index]["code_lower"] = code.lower()
-        self.items[item_index]["name_lower"] = name.lower()
+        # Update bookmarked items if needed
+        for i, item in enumerate(self.bookmarked_items):
+            if item["code"] == old_code:
+                self.bookmarked_items[i]["code"] = code
+                self.bookmarked_items[i]["name"] = name
+                self.bookmarked_items[i]["code_lower"] = code.lower()
+                self.bookmarked_items[i]["name_lower"] = name.lower()
+                # Find and update the bookmarked item widget
+                for widget in self.bookmarked_frame.winfo_children():
+                    if isinstance(widget, ttk.Frame):
+                        for child in widget.winfo_children():
+                            if isinstance(child, ttk.Label) and old_code in child["text"]:
+                                child.configure(text=f"{code} - {name}")
+                                break
         
-        # Rebuild search index
-        self.build_search_index()
-        
-        # Close the dialog
+        # Close dialog
         dialog.destroy()
-        
-        # Refresh the display
-        self.on_search_change()
         
         # Save data
         self.save_data()
         
         # Show success message
         self.show_status_message("✅ Đã lưu thay đổi")
-    
     def on_drag_start(self, event, index, frame):
         # Record the widget and its starting position
         self.drag_data["widget"] = frame

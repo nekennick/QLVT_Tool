@@ -3,6 +3,7 @@ from tkinter import ttk, filedialog, messagebox
 import pandas as pd
 import pyperclip
 import os
+import sys
 import json
 import re
 from tkinter import font
@@ -560,7 +561,13 @@ class QLVTApp:
                 ]
             }
                 
-            data_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.json")
+            # Get the directory containing the executable in PyInstaller bundle
+            if getattr(sys, 'frozen', False):
+                application_path = os.path.dirname(sys.executable)
+            else:
+                application_path = os.path.dirname(os.path.abspath(__file__))
+            
+            data_file = os.path.join(application_path, "data.json")
             with open(data_file, 'w', encoding='utf-8') as f:
                 json.dump(save_data, f, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -569,7 +576,13 @@ class QLVTApp:
     def load_data(self):
         """Load items data from JSON file if it exists"""
         try:
-            data_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.json")
+            # Get the directory containing the executable in PyInstaller bundle
+            if getattr(sys, 'frozen', False):
+                application_path = os.path.dirname(sys.executable)
+            else:
+                application_path = os.path.dirname(os.path.abspath(__file__))
+            
+            data_file = os.path.join(application_path, "data.json")
             if os.path.exists(data_file):
                 with open(data_file, 'r', encoding='utf-8') as f:
                     loaded_data = json.load(f)
